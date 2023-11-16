@@ -1,8 +1,10 @@
+import os
+import openai
+
+
 from dotenv import load_dotenv
 
 load_dotenv()
-import os
-import openai
 
 # Make sure the environment variable OPENAI_API_KEY is set.
 
@@ -16,3 +18,7 @@ response = openai.ChatCompletion.create(
 
 # Extract the response
 print(response['choices'][0]['message']['content'])
+
+
+
+
