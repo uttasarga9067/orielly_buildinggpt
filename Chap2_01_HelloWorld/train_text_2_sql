@@ -1,6 +1,8 @@
 from typing import Dict, Any
 from datasets import load_dataset, concatenate_datasets
 import evaluate
+import gc
+import torch
 
 from transformers import AutoTokenizer
 from transformers import AutoModelForSeq2SeqLM
@@ -39,6 +41,9 @@ val_dataset = dataset["validation"].map(preprocess_function, batched=True, remov
 # declare model
 model = AutoModelForSeq2SeqLM.from_pretrained("google/flan-t5-base")
 model = model.cuda()
+
+device = "cuda" if torch.cuda.is_available() else "cpu"
+model.to(device)
 
 
 data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model)
@@ -85,3 +90,32 @@ trainer = Seq2SeqTrainer(
 
 trainer.train()
 
+torch.cuda.empty_cache()
+del variables
+gc.collect()
+
+
+from typing import List
+
+table_prefix = "table:"
+question_prefix = "question:"
+
+def prepare_input(question: str, table: List[str]):
+    print("question:", question)
+    print("table:", table)
+    join_table = ",".join(table)
+    inputs = f"{question_prefix} {question} {table_prefix} {join_table}"
+    input_ids = tokenizer(inputs, max_length=700, return_tensors="pt").input_ids
+    return input_ids
+
+def inference(question: str, table: List[str]) -> str:
+    input_data = prepare_input(question=question, table=table)
+    input_data = input_data.to(model.device)
+    outputs = model.generate(inputs=input_data, num_beams=10, top_k=10, max_length=512)
+    result = tokenizer.decode(token_ids=outputs[0], skip_special_tokens=True)
+    return result
+
+
+test_id = 1000
+print("model result:", inference(dataset["test"][test_id]["question"], dataset["test"][test_id]["table"]["header"]))
+print("real result:", dataset["test"][test_id]["sql"]["human_readable"])
